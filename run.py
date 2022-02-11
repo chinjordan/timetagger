@@ -1,5 +1,5 @@
 """
-Basic script to run timetagger.
+basic script to run timetagger.
 
 You can use this to run timetagger locally. If you want to run it
 online, you'd need to take care of authentication.
@@ -19,6 +19,11 @@ from timetagger.server import (
     enable_service_worker,
 )
 
+import requests
+import config as app
+from expiringdict import ExpiringDict
+import random
+import string
 
 logger = logging.getLogger("asgineer")
 
@@ -27,10 +32,14 @@ common_assets = create_assets_from_dir(resource_filename("timetagger.common", ".
 apponly_assets = create_assets_from_dir(resource_filename("timetagger.app", "."))
 image_assets = create_assets_from_dir(resource_filename("timetagger.images", "."))
 page_assets = create_assets_from_dir(resource_filename("timetagger.pages", "."))
+page_assets.pop('login')
+custom_assets = create_assets_from_dir('./custom')
+custom_assets['login'] = custom_assets['login'].replace('github_oauth', app.github_auth)
+
 
 # Combine into two groups. You could add/replace assets here.
 app_assets = dict(**common_assets, **image_assets, **apponly_assets)
-web_assets = dict(**common_assets, **image_assets, **page_assets)
+web_assets = dict(**common_assets, **image_assets, **page_assets, **custom_assets)
 
 # Enable the service worker so the app can be used offline and is installable
 enable_service_worker(app_assets)
@@ -39,6 +48,8 @@ enable_service_worker(app_assets)
 # lightning fast handlers that support compression and HTTP caching.
 app_asset_handler = asgineer.utils.make_asset_handler(app_assets, max_age=0)
 web_asset_handler = asgineer.utils.make_asset_handler(web_assets, max_age=0)
+
+logins = ExpiringDict(max_len=float("inf"), max_age_seconds=3)
 
 
 @asgineer.to_asgi
@@ -78,8 +89,10 @@ async def api_handler(request, path):
     # Some endpoints do not require authentication
     if not path and request.method == "GET":
         return 200, {}, "See https://timetagger.readthedocs.io"
-    elif path == "webtoken_for_localhost":
-        return await webtoken_for_localhost(request)
+    elif path == "oauth/github":
+        return await webtoken(request)
+    elif path == "getKey":
+        return await getKeyFromTemp(request)
 
     # Authenticate and get user db
     try:
@@ -90,21 +103,29 @@ async def api_handler(request, path):
     # Handle endpoints that require authentication
     return await api_handler_triage(request, path, auth_info, db)
 
-
-async def webtoken_for_localhost(request):
-    """An authentication handler that provides a webtoken when the
-    hostname is localhost. If you run TimeTagger on the web, you must
-    implement your own authentication workflow to provide the client
-    with a TimeTagger webtoken. See `get_webtoken_unsafe()` for details.
-    """
-
-    # Establish that we can trust the client
-    if request.host not in ("localhost", "127.0.0.1"):
-        return 403, {}, "forbidden: must be on localhost"
-
-    # Return the webtoken for the default user
-    token = await get_webtoken_unsafe("defaultuser")
+async def getKeyFromTemp(request):
+    key = request.querydict['token']
+    token = logins.get(key)
+    print(token)
     return 200, {}, dict(token=token)
+
+async def webtoken(request):
+
+    github = requests.post(f"{app.github_token}{request.querydict['code']}",
+                           headers={'Accept': 'application/json'})
+
+    ghub_token = github.json()['access_token']
+
+    user = requests.get('https://api.github.com/user', headers={'Authorization': f"token {ghub_token}"})
+    if 'login' in user.json():
+        temp = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
+        token = await get_webtoken_unsafe(user.json()['login'])
+        logins[temp] = token
+        return 307, {"Location": f"/timetagger/login?token={temp}",}, "nice!"
+    else:
+        print(github)
+        return 403, {}, "forbidden: you're bad"
+
 
 
 if __name__ == "__main__":
