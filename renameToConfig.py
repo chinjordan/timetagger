@@ -6,5 +6,5 @@ secret = ''
 id = ''
 github_auth = f"https://github.com/login/oauth/authorize?client_id={id}&redirect_uri={redirect_uri}"
 github_token = f"https://github.com/login/oauth/access_token?client_id={id}&client_secret={secret}&code="
-# Todo: Only allow a few accounts to log in.
+# Only allow a few accounts to log in.
 acceptable_accounts = ["boehs"]

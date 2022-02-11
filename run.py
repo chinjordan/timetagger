@@ -118,13 +118,16 @@ async def webtoken(request):
 
     user = requests.get('https://api.github.com/user', headers={'Authorization': f"token {ghub_token}"})
     if 'login' in user.json():
-        temp = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
-        token = await get_webtoken_unsafe(user.json()['login'])
-        logins[temp] = token
-        return 307, {"Location": f"/timetagger/login?token={temp}",}, "nice!"
+        if user.json()['login'] in app.acceptable_accounts or len(app.acceptable_accounts) == 0:
+            temp = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
+            token = await get_webtoken_unsafe(user.json()['login'])
+            logins[temp] = token
+            return 307, {"Location": f"/timetagger/login?token={temp}",}, "nice!"
+        else:
+            return 418, {}, "I'm not a teapot: YOU'RE A TEAPOT"
     else:
         print(github)
-        return 403, {}, "forbidden: you're bad"
+        return 500, {}, "Error: Probably on our end. Webmaster, check logs."
 
 
 
