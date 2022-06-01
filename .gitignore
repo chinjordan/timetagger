@@ -130,4 +130,6 @@ dmypy.json
 .pyre/
 
 # secrets
+fly.toml
 config.py
+

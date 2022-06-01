@@ -32,10 +32,10 @@ common_assets = create_assets_from_dir(resource_filename("timetagger.common", ".
 apponly_assets = create_assets_from_dir(resource_filename("timetagger.app", "."))
 image_assets = create_assets_from_dir(resource_filename("timetagger.images", "."))
 page_assets = create_assets_from_dir(resource_filename("timetagger.pages", "."))
+
 page_assets.pop('login')
 custom_assets = create_assets_from_dir('./custom')
 custom_assets['login'] = custom_assets['login'].replace('github_oauth', app.github_auth)
-
 
 # Combine into two groups. You could add/replace assets here.
 app_assets = dict(**common_assets, **image_assets, **apponly_assets)
@@ -50,7 +50,6 @@ app_asset_handler = asgineer.utils.make_asset_handler(app_assets, max_age=0)
 web_asset_handler = asgineer.utils.make_asset_handler(web_assets, max_age=0)
 
 logins = ExpiringDict(max_len=float("inf"), max_age_seconds=3)
-
 
 @asgineer.to_asgi
 async def main_handler(request):
@@ -89,6 +88,8 @@ async def api_handler(request, path):
     # Some endpoints do not require authentication
     if not path and request.method == "GET":
         return 200, {}, "See https://timetagger.readthedocs.io"
+    #elif path == "webtoken_for_localhost":
+    #    return await webtoken_for_localhost(request)
     elif path == "oauth/github":
         return await webtoken(request)
     elif path == "getKey":
@@ -128,8 +129,6 @@ async def webtoken(request):
     else:
         print(github)
         return 500, {}, "Error: Probably on our end. Webmaster, check logs."
-
-
 
 if __name__ == "__main__":
     asgineer.run(main_handler, "uvicorn", config.bind, log_level="warning")

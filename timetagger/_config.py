@@ -25,8 +25,8 @@ class Config:
     """
 
     _ITEMS = [
-        ("bind", str, "0.0.0.0:80"),
-        ("datadir", str, "~/_timetagger"),
+        ("bind", str, "0.0.0.0:8080"),
+        ("datadir", str, "/etc/timetagger/data"),
         ("log_level", str, "info"),
     ]
     __slots__ = [name for name, _, _ in _ITEMS]
